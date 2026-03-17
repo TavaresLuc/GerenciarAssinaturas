@@ -169,7 +169,7 @@ Violações das regras retornam `400 Bad Request`:
 
 ## Decisões de Arquitetura
 
-As decisões detalhadas estão documentadas em [`decisions.txt`](decisions.txt). Resumo:
+Resumo:
 
 **DDD — Domínio Rico**
 A entidade `Assinante` tem construtor privado, setters privados e toda validação encapsulada dentro dela. A criação só ocorre via `Assinante.Criar()`, que valida as regras antes de instanciar (Factory Method). Isso evita o anti-pattern "Anemic Domain Model".
