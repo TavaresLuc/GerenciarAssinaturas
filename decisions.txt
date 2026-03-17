@@ -1,0 +1,55 @@
+==============================================================
+  DECISÕES DE ARQUITETURA — GerenciarAssinaturas
+==============================================================
+
+--------------------------------------------------------------
+ETAPA 1 — Domain
+--------------------------------------------------------------
+
+[1] Arquitetura em 4 Camadas (DDD)
+    Dividimos a solução em: Domain, Application, Infrastructure, API.
+    → Por quê? Domain-Driven Design (DDD) organiza o código em torno
+      das regras de negócio (Domain), não em torno de frameworks ou banco.
+      Isso facilita manutenção, testes e troca de tecnologia (ex: trocar
+      SQL Server por PostgreSQL sem tocar no Domain).
+
+[2] Domínio Rico (Rich Domain Model)
+    A entidade Assinante tem construtor privado, setters privados e
+    expõe apenas métodos de comportamento (Criar, Editar, Desativar).
+    → Por quê? Evita o "Anemic Domain Model" (anti-pattern onde a entidade
+      é só um saco de dados sem comportamento). Com domínio rico, as regras
+      ficam onde devem estar: dentro da entidade.
+
+[3] Factory Method — Assinante.Criar(...)
+    Em vez de "new Assinante()", usamos o método estático Criar().
+    → Por quê? Construtores não têm nomes descritivos. Criar() deixa
+      a intenção clara e é o único ponto de validação na criação.
+      Padrão Factory Method (GoF) aplicado ao DDD.
+
+[4] DomainException
+    Exceção customizada lançada quando regra de negócio é violada.
+    → Por quê? Permite que a API capture DomainException → HTTP 400 (Bad Request),
+      enquanto exceções técnicas → HTTP 500. Separa erros de negócio de erros técnicos.
+
+[5] IAssinanteRepository no Domain (não na Infrastructure)
+    A interface do repositório fica no Domain.
+    → Por quê? Dependency Inversion Principle (D do SOLID).
+      O Domain define O QUE precisa. A Infrastructure fornece COMO.
+      Assim o Domain não depende de EF Core, tornando-o testável
+      e independente de qualquer framework de banco de dados.
+
+[6] TempoAssinaturaMeses como propriedade calculada
+    Não é persistida no banco (será .Ignore() no EF Core).
+    → Por quê? O valor é derivado de DataInicioAssinatura + data atual.
+      Persistir um dado calculável seria redundância e risco de inconsistência
+      (o valor persistido ficaria desatualizado).
+
+[7] Guid como chave primária (em vez de int sequencial)
+    → Por quê? Guids são únicos globalmente, facilitam merge de dados,
+      evitam exposição de sequência previsível de IDs na API (segurança),
+      e são compatíveis com ambientes distribuídos.
+
+[8] StatusAssinatura como Enum (Ativo/Inativo) em vez de bool
+    → Por quê? Enums são mais expressivos que bool. Se no futuro surgir
+      um terceiro status (ex: "Suspenso", "Inadimplente"), não precisamos
+      refatorar toda a base — apenas adicionamos ao enum.
