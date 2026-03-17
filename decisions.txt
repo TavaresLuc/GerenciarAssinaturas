@@ -53,3 +53,81 @@ ETAPA 1 — Domain
     → Por quê? Enums são mais expressivos que bool. Se no futuro surgir
       um terceiro status (ex: "Suspenso", "Inadimplente"), não precisamos
       refatorar toda a base — apenas adicionamos ao enum.
+
+--------------------------------------------------------------
+ETAPA 2 — Infrastructure + Application
+--------------------------------------------------------------
+
+[9] Fluent API no EF Core (sem Data Annotations)
+    Toda a configuração do banco fica em AssinanteConfiguration.cs,
+    separada da entidade.
+    → Por quê? Data Annotations acoplam a entidade de domínio a detalhes
+      de banco (ex: [MaxLength], [Column]). Com Fluent API a entidade
+      fica limpa e o mapeamento fica isolado na Infrastructure.
+
+[10] .Ignore() no TempoAssinaturaMeses
+    Configurado explicitamente no AssinanteConfiguration para que o EF Core
+    não tente criar uma coluna para essa propriedade.
+    → Por quê? É o reflexo da decisão [6] no nível do ORM.
+
+[11] Índice único no Email via Fluent API
+    HasIndex(a => a.Email).IsUnique() no banco.
+    → Por quê? A validação no Service já impede duplicidade, mas o índice
+      no banco é a garantia final — protege contra race conditions e
+      inserções diretas fora da API.
+
+[12] AppDbContextFactory (IDesignTimeDbContextFactory)
+    Permite rodar "dotnet ef migrations add" sem precisar subir a API.
+    → Por quê? Sem ela, o EF Tools não consegue instanciar o DbContext
+      em tempo de design porque não há startup project configurado.
+
+[13] DTOs separados da entidade de domínio
+    CriarAssinanteRequest, EditarAssinanteRequest, AssinanteResponse —
+    nenhum deles é a entidade Assinante.
+    → Por quê? A entidade não deve ser exposta diretamente na API (evita
+      over-posting e exposição de dados internos). Os DTOs definem
+      exatamente o contrato de entrada/saída.
+
+[14] AssinanteResponse.FromEntity() como mapeamento estático
+    Em vez de AutoMapper, usamos um método estático no próprio DTO.
+    → Por quê? Para um projeto com uma entidade, AutoMapper seria
+      over-engineering. O método estático é simples, explícito e testável.
+
+[15] ResultadoPaginado<T> genérico com TotalPaginas calculado
+    O campo TotalPaginas é uma propriedade calculada (não vem do banco).
+    → Por quê? Evita que o cliente precise calcular. O contrato de
+      paginação segue o padrão comum de APIs REST.
+
+[16] Validação de unicidade de e-mail no Service, não na entidade
+    A entidade valida o formato do e-mail. A unicidade é verificada no
+    AssinanteService, que consulta o repositório antes de criar/editar.
+    → Por quê? A entidade não tem acesso ao banco — ela não pode saber
+      se outro e-mail igual existe. Essa responsabilidade pertence ao
+      caso de uso (Application layer). Cada camada cuida do que é seu.
+
+--------------------------------------------------------------
+ETAPA 3 — API
+--------------------------------------------------------------
+
+[17] Middleware global para DomainException
+    Em vez de try/catch em cada controller, um middleware no Program.cs
+    captura qualquer DomainException e retorna HTTP 400 com { "erro": "..." }.
+    → Por quê? Centraliza o tratamento de erro, evita repetição e garante
+      que nenhum erro de negócio vaze como HTTP 500.
+
+[18] Soft delete via PATCH /desativar
+    O endpoint de desativação usa PATCH (não DELETE) e muda o status
+    para Inativo — o registro permanece no banco.
+    → Por quê? Soft delete preserva histórico para auditoria. PATCH é
+      mais semântico que DELETE para uma mudança parcial de estado.
+
+[19] DELETE como hard delete separado
+    O DELETE físico existe como endpoint separado do desativar.
+    → Por quê? Dá controle explícito: desativar é reversível, deletar não.
+      O cliente escolhe conscientemente qual operação quer.
+
+[20] Listagem e operações só para assinantes Ativos
+    ObterPorId, Editar e Desativar lançam DomainException se o assinante
+    for Inativo. A listagem já filtra por StatusAssinatura == Ativo.
+    → Por quê? Regra de negócio definida no requisito. Inativo é tratado
+      como "não existe" para fins operacionais.
