@@ -100,7 +100,7 @@ public class Assinante
 
     private static void ValidarDataInicioAssinatura(DateTime data)
     {
-        if (data > DateTime.Today)
+        if (data.Date > DateTime.Today)
             throw new DomainException("A data de início da assinatura não pode ser futura.");
     }
 
